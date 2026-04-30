@@ -13,22 +13,6 @@ import type {
 
 export const runtime = "nodejs";
 
-function hourKey(date: Date, timeZone: string) {
-  const weekday = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    weekday: "short",
-  }).format(date);
-  const hour = Number(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone,
-      hour: "numeric",
-      hour12: false,
-    }).format(date),
-  );
-
-  return { weekday, hour };
-}
-
 function dayKey(date: Date, timeZone: string) {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone,
@@ -129,11 +113,6 @@ export async function GET(req: Request) {
 
   for (const student of students) {
     const timeZone = student.timezone || "America/New_York";
-    const { weekday, hour } = hourKey(now, timeZone);
-    if (weekday !== "Sun" || hour !== 18) {
-      continue;
-    }
-
     const link = links.find((entry) => entry.student_id === student.id);
     if (!link) {
       skipped.push(`${student.email}: missing teacher link`);
