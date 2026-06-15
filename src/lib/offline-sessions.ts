@@ -11,6 +11,10 @@ export interface PendingSession {
   endedAt: number;
   durationSec: number;
   pieceId: string | null;
+  sheetMusicIds?: string[];
+  sessionMode?: string;
+  entryPathwayId?: string | null;
+  entryRequirementId?: string | null;
   focusType: string;
   notes: string;
 }

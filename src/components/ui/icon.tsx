@@ -1,11 +1,12 @@
 // Lucide-style stroke icons. Inline SVG so we don't ship a 200kb icon library
 // to render 18 glyphs.
 
-type IconName =
+export type IconName =
   | "settings" | "plus" | "arrow-left" | "pause" | "play" | "filter"
   | "calendar" | "user-plus" | "home" | "timer" | "music" | "list"
   | "target" | "check" | "chevron-right" | "users" | "heart" | "mic"
-  | "x" | "pencil" | "sun" | "moon";
+  | "x" | "pencil" | "sun" | "moon" | "mail" | "shield" | "credit-card"
+  | "log-out" | "trash" | "bell";
 
 interface IconProps {
   name: IconName;
@@ -78,6 +79,18 @@ export function Icon({ name, size = 24, stroke = 1.5, className }: IconProps) {
       return <svg {...props}><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" /></svg>;
     case "moon":
       return <svg {...props}><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>;
+    case "mail":
+      return <svg {...props}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 7l9 6 9-6" /></svg>;
+    case "shield":
+      return <svg {...props}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12l2 2 4-5" /></svg>;
+    case "credit-card":
+      return <svg {...props}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 10h18M7 15h4" /></svg>;
+    case "log-out":
+      return <svg {...props}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" /></svg>;
+    case "trash":
+      return <svg {...props}><path d="M3 6h18M8 6V4h8v2M6 6l1 15h10l1-15M10 11v6M14 11v6" /></svg>;
+    case "bell":
+      return <svg {...props}><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>;
     default:
       return <svg {...props}><circle cx="12" cy="12" r="9" /></svg>;
   }

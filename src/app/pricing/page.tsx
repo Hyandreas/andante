@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
 interface Feature { k: string; on: boolean; hint?: string }
@@ -25,7 +26,7 @@ const PLANS: Plan[] = [
     price: "$0",
     cadence: "forever",
     blurb: "Timer, streak, one piece, and a weekly chart. No card.",
-    cta: "Current plan",
+    cta: "Get started free",
     features: [
       { k: "Daily timer + streak", on: true },
       { k: "1 active piece", on: true },
@@ -82,27 +83,54 @@ const PLANS: Plan[] = [
 
 export default function PricingPage() {
   const [yearly, setYearly] = useState(false);
+  const [pending, setPending] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const onSelect = async (planId: string) => {
-    if (planId === "free") return;
+    if (planId === "free") { window.location.href = "/signup"; return; }
+    if (pending) return;
     const cadence = yearly && planId === "pro" ? "yearly" : "monthly";
+    setPending(planId);
+    setNotice(null);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
     try {
       const r = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ planId, cadence }),
+        signal: controller.signal,
       });
       if (!r.ok) {
-        // Without configured Stripe envs we just let the user know — full
-        // flow is wired through the webhook on a real environment.
+        // Logged-out visitor: send them to sign up / sign in and return here,
+        // instead of dead-ending in a toast.
+        if (r.status === 401) {
+          window.location.href = "/login?next=/pricing";
+          return;
+        }
+        // Checkout isn't wired up in this environment — show a friendly message
+        // rather than leaking the raw env/config error.
+        if (r.status === 503) {
+          setNotice("Checkout isn't available yet — email hello@andante.app to get started.");
+          return;
+        }
         const body = await r.json().catch(() => ({}));
-        alert(body.error ?? "Checkout unavailable in this preview.");
+        setNotice(body.error ?? "Checkout unavailable in this preview.");
         return;
       }
       const { url } = await r.json();
-      window.location.href = url;
-    } catch {
-      alert("Checkout unavailable in this preview.");
+      if (url) window.location.href = url;
+    } catch (e) {
+      if ((e as Error).name === "AbortError") {
+        setNotice("Checkout timed out. Try again or contact support.");
+      } else {
+        setNotice("Checkout unavailable in this preview.");
+      }
+    } finally {
+      clearTimeout(timeoutId);
+      setPending(null);
     }
   };
 
@@ -110,10 +138,10 @@ export default function PricingPage() {
     <div style={{ padding: "40px 24px 60px", overflowY: "auto" }}>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", marginBottom: 36 }}>
         <div className="t-micro" style={{ marginBottom: 10 }}>PRICING</div>
-        <div style={{ fontSize: 42, fontWeight: 500, letterSpacing: -1.4, lineHeight: 1.05, marginBottom: 12 }}>
+        <h1 style={{ fontSize: 42, fontWeight: 500, letterSpacing: -1.4, lineHeight: 1.05, margin: "0 0 12px" }}>
           Pricing for the weeks<br />
           before the audition.
-        </div>
+        </h1>
         <div className="t-meta" style={{ maxWidth: 540, marginBottom: 22 }}>
           Start free. Upgrade when you need more pieces, recordings, practice rooms, teacher feedback, or studio oversight.
         </div>
@@ -172,7 +200,7 @@ export default function PricingPage() {
                 }}>{p.badge.toUpperCase()}</div>
               )}
               <div>
-                <div style={{ fontSize: 20, fontWeight: 500, letterSpacing: -0.4 }}>{p.name}</div>
+                <h2 style={{ fontSize: 20, fontWeight: 500, letterSpacing: -0.4, margin: 0 }}>{p.name}</h2>
                 <div style={{ fontSize: 13, opacity: 0.65, marginTop: 6, lineHeight: 1.4 }}>{p.blurb}</div>
               </div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 6, paddingTop: 4 }}>
@@ -184,22 +212,24 @@ export default function PricingPage() {
               {p.yearlyNote && <div style={{ fontSize: 11, opacity: 0.5, marginTop: -10 }}>{p.yearlyNote}</div>}
               <button
                 onClick={() => onSelect(p.id)}
+                disabled={pending !== null && pending !== p.id}
                 className="press"
                 style={{
                   padding: "12px 18px", borderRadius: 10,
                   background: dark ? "var(--color-bg)" : "var(--color-text-primary)",
                   color: dark ? "var(--color-text-primary)" : "var(--color-bg)",
                   fontSize: 14, fontWeight: 500,
+                  opacity: pending !== null && pending !== p.id ? 0.5 : 1,
                 }}
-              >{p.cta}</button>
-              <div style={{ height: 1, background: dark ? "rgba(255,255,255,0.12)" : "var(--color-border)" }} />
+              >{pending === p.id ? "Connecting…" : p.cta}</button>
+              <div style={{ height: "0.5px", background: dark ? "color-mix(in srgb, var(--color-bg) 12%, transparent)" : "var(--color-border)" }} />
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {p.features.map((f, j) => (
                   <div key={j} style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, opacity: f.on ? 1 : 0.4 }}>
                     <div style={{
                       marginTop: 4, width: 12, height: 12, borderRadius: 999,
                       background: f.on ? (dark ? "var(--color-bg)" : "var(--color-text-primary)") : "transparent",
-                      border: f.on ? "none" : "1px dashed currentColor",
+                      border: f.on ? "none" : "0.5px dashed currentColor",
                       display: "grid", placeItems: "center", flexShrink: 0,
                     }}>
                       {f.on && (
@@ -251,11 +281,37 @@ export default function PricingPage() {
             Studio plans bill per teacher with bulk student seats. Includes parent digests, branded portal, and Stripe payouts for masterclasses.
           </div>
         </div>
-        <button className="press" style={{
-          padding: "10px 18px", borderRadius: 10,
-          border: "0.5px solid var(--color-border)", fontSize: 13, fontWeight: 500, whiteSpace: "nowrap",
-        }}>Talk to us →</button>
+        <a
+          href="mailto:hello@andante.app?subject=Studio%20pricing%20inquiry"
+          className="press"
+          style={{
+            padding: "10px 18px", borderRadius: 10,
+            border: "0.5px solid var(--color-border)", fontSize: 13, fontWeight: 500, whiteSpace: "nowrap",
+            textDecoration: "none", color: "inherit",
+          }}
+        >Talk to us →</a>
       </div>
+
+      {notice && (
+        <div
+          role="alert"
+          style={{
+            position: "fixed", left: "50%", bottom: 24, transform: "translateX(-50%)",
+            background: "var(--color-text-primary)", color: "var(--color-bg)",
+            padding: "12px 20px", borderRadius: 10, fontSize: 13,
+            display: "flex", alignItems: "center", gap: 14,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
+            zIndex: 50, maxWidth: "calc(100vw - 48px)",
+          }}
+        >
+          <span>{notice}</span>
+          <button
+            onClick={() => setNotice(null)}
+            aria-label="Dismiss notice"
+            style={{ fontSize: 11, opacity: 0.75, color: "inherit", background: "transparent" }}
+          >Dismiss</button>
+        </div>
+      )}
     </div>
   );
 }

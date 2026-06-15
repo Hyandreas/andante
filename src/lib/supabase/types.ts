@@ -6,7 +6,13 @@ export type FocusType = "repertoire" | "scales" | "etudes" | "sight-reading";
 export type Plan = "free" | "pro" | "studio";
 export type RequirementStatus = "todo" | "active" | "done";
 export type TakeStatus = "pending" | "judged" | "withdrawn";
+export type ThemePreference = "system" | "light" | "dark";
+export type DensityPreference = "comfortable" | "compact";
 export type UserRole = "musician" | "teacher";
+export type SessionMode = "practice" | "composer";
+export type SheetMusicOrigin = "upload" | "imslp" | "pathway" | "generated";
+export type SheetMusicFileKind = "pdf" | "image" | "musicxml" | "midi" | "audio-source";
+export type ComposerJobStatus = "queued" | "processing" | "completed" | "failed";
 
 export type UserRow = {
   id: string;
@@ -39,6 +45,9 @@ export type SessionRow = {
   ended_at: string | null;
   duration_sec: number | null;
   focus_type: FocusType | null;
+  session_mode: SessionMode;
+  entry_pathway_id: string | null;
+  entry_requirement_id: string | null;
   notes: string | null;
   created_at: string;
 }
@@ -46,6 +55,41 @@ export type SessionRow = {
 export type SessionPieceRow = {
   session_id: string;
   piece_id: string;
+}
+
+export type SessionSheetMusicRow = {
+  session_id: string;
+  sheet_music_id: string;
+  role: string;
+  created_at: string;
+}
+
+export type SheetMusicRow = {
+  id: string;
+  user_id: string | null;
+  piece_id: string | null;
+  title: string;
+  composer: string | null;
+  origin: SheetMusicOrigin;
+  source_name: string | null;
+  source_url: string | null;
+  license: string | null;
+  attribution: string | null;
+  is_public: boolean;
+  created_at: string;
+}
+
+export type SheetMusicFileRow = {
+  id: string;
+  sheet_music_id: string;
+  kind: SheetMusicFileKind;
+  storage_bucket: string | null;
+  storage_path: string | null;
+  external_url: string | null;
+  content_type: string | null;
+  size_bytes: number | null;
+  display_order: number;
+  created_at: string;
 }
 
 export type AuditionRow = {
@@ -73,6 +117,7 @@ export type PathwayRow = {
 export type PathwayRequirementRow = {
   id: string;
   pathway_id: string;
+  sheet_music_id: string | null;
   position: number;
   label: string;
   piece_label: string | null;
@@ -131,6 +176,20 @@ export type RecordingAnnotationRow = {
   created_at: string;
 }
 
+export type ComposerJobRow = {
+  id: string;
+  user_id: string;
+  session_id: string;
+  source_recording_id: string | null;
+  generated_sheet_music_id: string | null;
+  status: ComposerJobStatus;
+  worker_run_id: string | null;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+}
+
 export type TakeRow = {
   id: string;
   user_id: string;
@@ -160,6 +219,61 @@ export type SubscriptionRow = {
   status: string;
   cadence: "monthly" | "yearly";
   period_end: string | null;
+  updated_at: string;
+}
+
+export type UserPreferenceRow = {
+  user_id: string;
+  theme: ThemePreference;
+  reduced_motion: boolean;
+  density: DensityPreference;
+  default_focus_type: FocusType | null;
+  practice_reminder_enabled: boolean;
+  practice_reminder_time: string;
+  practice_reminder_days: string[];
+  email_practice_reminders: boolean;
+  push_practice_reminders: boolean;
+  parent_digest_emails: boolean;
+  product_emails: boolean;
+  last_practice_reminder_sent_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type PushSubscriptionRow = {
+  id: string;
+  user_id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  user_agent: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type OnboardingResponseRow = {
+  user_id: string;
+  display_name: string | null;
+  instrument: string | null;
+  role: string | null;
+  level: string | null;
+  years_playing: string | null;
+  age_range: string | null;
+  country: string | null;
+  has_teacher: boolean | null;
+  referral_source: string | null;
+  weekly_frequency: string | null;
+  session_length: string | null;
+  daily_goal_min: number | null;
+  primary_goal: string | null;
+  struggle: string | null;
+  piece_name: string | null;
+  composer: string | null;
+  audition_name: string | null;
+  audition_date: string | null;
+  timezone: string | null;
+  completed_at: string;
+  created_at: string;
   updated_at: string;
 }
 
@@ -211,8 +325,11 @@ export type Database = {
     Tables: {
       users: GenericTable<UserRow>;
       pieces: GenericTable<PieceRow>;
+      sheet_music: GenericTable<SheetMusicRow>;
+      sheet_music_files: GenericTable<SheetMusicFileRow>;
       sessions: GenericTable<SessionRow>;
       session_pieces: GenericTable<SessionPieceRow>;
+      session_sheet_music: GenericTable<SessionSheetMusicRow>;
       auditions: GenericTable<AuditionRow>;
       pathways: GenericTable<PathwayRow>;
       pathway_requirements: GenericTable<PathwayRequirementRow>;
@@ -222,9 +339,13 @@ export type Database = {
       room_seats: GenericTable<RoomSeatRow>;
       recordings: GenericTable<RecordingRow>;
       recording_annotations: GenericTable<RecordingAnnotationRow>;
+      composer_jobs: GenericTable<ComposerJobRow>;
       takes: GenericTable<TakeRow>;
       take_feedback: GenericTable<TakeFeedbackRow>;
       subscriptions: GenericTable<SubscriptionRow>;
+      user_preferences: GenericTable<UserPreferenceRow>;
+      push_subscriptions: GenericTable<PushSubscriptionRow>;
+      onboarding_responses: GenericTable<OnboardingResponseRow>;
       teachers: GenericTable<TeacherRow>;
       teacher_students: GenericTable<TeacherStudentRow>;
       assignments: GenericTable<AssignmentRow>;
@@ -233,6 +354,10 @@ export type Database = {
     Functions: Record<string, never>;
     Enums: {
       focus_type: FocusType;
+      session_mode: SessionMode;
+      sheet_music_origin: SheetMusicOrigin;
+      sheet_music_file_kind: SheetMusicFileKind;
+      composer_job_status: ComposerJobStatus;
       plan: Plan;
       requirement_status: RequirementStatus;
       take_status: TakeStatus;

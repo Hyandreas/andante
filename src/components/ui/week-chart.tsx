@@ -1,14 +1,33 @@
 "use client";
 
 interface WeekChartProps {
-  days: (number | null)[]; // 7 entries Mon..Sun; null = future
+  days: (number | null)[]; // 7 entries, Monday-anchored; null = future
   todayIdx: number;
+  /** ISO date (YYYY-MM-DD) of the Monday that anchors the window. When given,
+   *  labels are derived from the real dates so bars and labels stay aligned. */
+  startKey?: string;
+  /** Explicit single-letter labels override; takes precedence over startKey. */
+  labels?: string[];
   reKey?: number;
 }
 
-const LABELS = ["M", "T", "W", "T", "F", "S", "S"];
+const DEFAULT_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
 
-export function WeekChart({ days, todayIdx, reKey = 0 }: WeekChartProps) {
+// Derive 7 single-letter weekday labels from a Monday-anchored start date.
+function labelsFromStartKey(startKey: string): string[] {
+  // Parse as local midnight to avoid TZ shifting the day.
+  const [y, m, d] = startKey.split("-").map(Number);
+  if (!y || !m || !d) return DEFAULT_LABELS;
+  const start = new Date(y, m - 1, d);
+  const letter = ["S", "M", "T", "W", "T", "F", "S"]; // index by getDay()
+  return Array.from({ length: 7 }, (_, i) => {
+    const day = new Date(start.getTime() + i * 86400000);
+    return letter[day.getDay()];
+  });
+}
+
+export function WeekChart({ days, todayIdx, startKey, labels, reKey = 0 }: WeekChartProps) {
+  const dayLabels = labels ?? (startKey ? labelsFromStartKey(startKey) : DEFAULT_LABELS);
   const max = Math.max(...days.filter((v): v is number => v != null), 1);
   return (
     <div
@@ -39,7 +58,7 @@ export function WeekChart({ days, todayIdx, reKey = 0 }: WeekChartProps) {
               />
             </div>
             <div className="t-micro" style={{ color: isToday ? "var(--color-text-primary)" : "var(--color-text-muted)" }}>
-              {LABELS[i]}
+              {dayLabels[i]}
             </div>
           </div>
         );

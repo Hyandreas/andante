@@ -64,7 +64,7 @@ export default function ForgotPasswordPage() {
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
-          {err && <div className="t-meta" style={{ color: "#9a3f20" }}>{err}</div>}
+          {err && <div className="t-meta" style={{ color: "var(--color-danger)" }}>{err}</div>}
           <button type="submit" disabled={loading} className="marketing-primary-cta" style={{ width: "100%", justifyContent: "center" }}>
             {loading ? "Sending…" : "Send reset link"}
           </button>

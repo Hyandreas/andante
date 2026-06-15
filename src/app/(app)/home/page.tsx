@@ -1,16 +1,24 @@
 import Link from "next/link";
 import { Icon } from "@/components/ui/icon";
-import { Kbd } from "@/components/ui/kbd";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatNumber } from "@/components/ui/stat-number";
 import { WeekChart } from "@/components/ui/week-chart";
 import { AmbientField } from "@/components/home/ambient-field";
+import { HomeHero } from "@/components/home/home-hero";
+import { HomeRepertoire } from "@/components/home/home-repertoire";
 import { SocialFeed } from "@/components/feed/social-feed";
+import { Reveal } from "@/components/ui/motion/reveal";
+import { ReadinessRing } from "@/components/ui/motion/readiness-ring";
 import { getHomePageData } from "@/lib/app-data";
+import { demoFixturesEnabled } from "@/lib/env";
 
 export default async function HomePage() {
   const data = await getHomePageData();
   const audition = data.nextAudition;
+  const showFixtures = demoFixturesEnabled();
+  // Guard divide-by-zero when the daily goal is 0 (NaN / Infinity otherwise).
+  const goalPct = data.goalMinutes > 0 ? Math.round((data.todayMinutes / data.goalMinutes) * 100) : 0;
+  const goalFrac = data.goalMinutes > 0 ? data.todayMinutes / data.goalMinutes : 0;
 
   return (
     <div style={{ flex: 1, padding: "32px 24px 48px", overflowY: "auto" }} className="lg:!px-10 lg:!pt-8">
@@ -45,35 +53,7 @@ export default async function HomePage() {
             background: "var(--color-bg)",
             animation: "breathe 3s ease-in-out infinite",
           }} />
-          <div style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", opacity: 0.55 }}>
-            {data.dateLabel}
-          </div>
-          <div style={{ fontSize: 44, fontWeight: 500, letterSpacing: -1.4, marginTop: 8, lineHeight: 1.1 }}>
-            Pick up where<br />you left off.
-          </div>
-          <div style={{ marginTop: "auto", paddingTop: 28, display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 24, flexWrap: "wrap" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <div className="t-micro" style={{ opacity: 0.6 }}>Active piece</div>
-              <div style={{ fontSize: 15, fontWeight: 500 }}>{data.activePiece.name}</div>
-              <div style={{ fontSize: 12, opacity: 0.5 }}>Mvt. III · mm. 41–58</div>
-            </div>
-            <Link
-              href="/session"
-              className="press"
-              style={{
-                background: "var(--color-bg)",
-                color: "var(--color-text-primary)",
-                padding: "14px 24px",
-                borderRadius: 10,
-                fontSize: 14, fontWeight: 500,
-                display: "inline-flex", alignItems: "center", gap: 10,
-                textDecoration: "none",
-              }}
-            >
-              Start Practice
-              <Kbd>S</Kbd>
-            </Link>
-          </div>
+          <HomeHero dateLabel={data.dateLabel} serverActivePiece={data.activePiece} />
         </div>
 
         <div style={{ display: "grid", gridTemplateRows: "1fr 1fr", gap: 20 }}>
@@ -97,109 +77,84 @@ export default async function HomePage() {
           <div className="card" style={{ padding: 20, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
             <div className="row-between">
               <div className="t-micro">Today</div>
-              <div className="t-micro">{Math.round((data.todayMinutes / data.goalMinutes) * 100)}% of goal</div>
+              <div className="t-micro">{goalPct}% of goal</div>
             </div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
               <StatNumber value={data.todayMinutes} />
               <span className="muted" style={{ fontSize: 14 }}>min · goal {data.goalMinutes}</span>
             </div>
-            <ProgressBar value={data.todayMinutes / data.goalMinutes} delay={300} />
+            <ProgressBar value={goalFrac} delay={300} />
           </div>
         </div>
       </div>
 
-      {/* Live cohort feed */}
-      <div style={{
-        background: "var(--color-text-primary)", color: "var(--color-bg)",
-        borderRadius: 14, padding: "20px 24px", marginBottom: 20,
-        position: "relative", overflow: "hidden",
-      }}>
-        <div className="row-between" style={{ marginBottom: 8 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{
-              width: 7, height: 7, borderRadius: 999,
-              background: "var(--color-bg)",
-              animation: "breathe 1.6s ease-in-out infinite",
-            }} />
-            <span style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", opacity: 0.6 }}>
-              Live · Your cohort
+      {/* Live cohort feed — fabricated social proof, shown only with fixtures on */}
+      {showFixtures && (
+      <Reveal delay={120} distance={10}>
+        <div style={{
+          background: "var(--color-text-primary)", color: "var(--color-bg)",
+          borderRadius: 14, padding: "20px 24px", marginBottom: 20,
+          position: "relative", overflow: "hidden",
+        }}>
+          <div className="row-between" style={{ marginBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{
+                width: 7, height: 7, borderRadius: 999,
+                background: "var(--color-bg)",
+                animation: "breathe 1.6s ease-in-out infinite",
+              }} />
+              <span style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", opacity: 0.6 }}>
+                Live · Your cohort
+              </span>
+            </div>
+            <span style={{ fontSize: 11, opacity: 0.5, letterSpacing: 1 }}>
+              NYSSMA ALL-STATE · 1,284 MUSICIANS
             </span>
           </div>
-          <span style={{ fontSize: 11, opacity: 0.5, letterSpacing: 1 }}>
-            NYSSMA ALL-STATE · 1,284 MUSICIANS
-          </span>
+          <SocialFeed />
         </div>
-        <SocialFeed />
-      </div>
+      </Reveal>
+      )}
 
       {/* Week + Audition */}
-      <div style={{ display: "grid", gap: 20, gridTemplateColumns: "minmax(0,1fr)", marginBottom: 20 }} className="lg:!grid-cols-[1.4fr_1fr]">
-        <div className="card" style={{ padding: 24 }}>
-          <div className="row-between" style={{ marginBottom: 16 }}>
-            <div className="t-section">This Week</div>
-            <div style={{ display: "flex", gap: 14, alignItems: "baseline" }}>
-              <span style={{ fontSize: 22, fontWeight: 500, letterSpacing: -0.6 }}>{data.weekTotal}</span>
-              <span className="muted" style={{ fontSize: 12 }}>+ 1h 04m vs last week</span>
-            </div>
-          </div>
-          <WeekChart days={data.weekDays} todayIdx={data.todayIdx} />
-        </div>
-        <div className="card" style={{ padding: 24, display: "flex", flexDirection: "column", gap: 14 }}>
-          <div className="row-between">
-            <div className="t-micro">Next Audition</div>
-            <div className="t-micro">{audition.daysLeft}d</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 22, fontWeight: 500, letterSpacing: -0.6, lineHeight: 1.1 }}>{audition.name}</div>
-            <div className="t-meta" style={{ marginTop: 6 }}>{audition.location} · {audition.date}</div>
-          </div>
-          <div style={{ marginTop: "auto" }}>
-            <div className="row-between" style={{ marginBottom: 6 }}>
-              <span className="t-micro">Readiness</span>
-              <span style={{ fontSize: 12, fontVariantNumeric: "tabular-nums" }}>{Math.round(audition.progress * 100)}%</span>
-            </div>
-            <ProgressBar value={audition.progress} delay={400} />
-          </div>
-        </div>
-      </div>
-
-      {/* Active repertoire */}
-      <div className="row-between" style={{ marginBottom: 14 }}>
-        <div className="t-section">Active Repertoire</div>
-        <div className="t-micro">{data.activePieces.length} pieces</div>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr)", gap: 14 }} className="lg:!grid-cols-2">
-        {data.activePieces.slice(0, 4).map((p, i) => (
-          <Link
-            key={p.id}
-            href={`/pieces#${p.id}`}
-            className="card press reveal-up"
-            style={{
-              padding: 20,
-              display: "flex", flexDirection: "column", gap: 14,
-              animationDelay: `${i * 70}ms`,
-              textDecoration: "none",
-              color: "inherit",
-            }}
-          >
-            <div className="row-between">
-              <div className="t-micro">{p.role}</div>
-              <div className="t-micro">{p.totalSessions} sessions</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 16, fontWeight: 500, letterSpacing: -0.2, lineHeight: 1.2 }}>{p.name}</div>
-              <div className="t-meta" style={{ marginTop: 4 }}>{p.composer}</div>
-            </div>
-            <div>
-              <div className="row-between" style={{ marginBottom: 6 }}>
-                <span className="t-micro">{p.weekTime}</span>
-                <span style={{ fontSize: 12, fontVariantNumeric: "tabular-nums" }}>{Math.round(p.progress * 100)}%</span>
+      <Reveal delay={200} distance={10}>
+        <div style={{ display: "grid", gap: 20, gridTemplateColumns: "minmax(0,1fr)", marginBottom: 20 }} className="lg:!grid-cols-[1.4fr_1fr]">
+          <div className="card" style={{ padding: 24 }}>
+            <div className="row-between" style={{ marginBottom: 16 }}>
+              <div className="t-section">This Week</div>
+              <div style={{ display: "flex", gap: 14, alignItems: "baseline" }}>
+                <span style={{ fontSize: 22, fontWeight: 500, letterSpacing: -0.6 }}>{data.weekTotal}</span>
+                {showFixtures && <span className="muted" style={{ fontSize: 12 }}>+ 1h 04m vs last week</span>}
               </div>
-              <ProgressBar value={p.progress} delay={i * 70 + 300} />
             </div>
-          </Link>
-        ))}
-      </div>
+            <WeekChart days={data.weekDays} todayIdx={data.todayIdx} startKey={data.weekStartKey} />
+          </div>
+          {audition ? (
+            <div className="card" style={{ padding: 24, display: "flex", flexDirection: "column", gap: 14 }}>
+              <div className="row-between">
+                <div className="t-micro">Next Audition</div>
+                <div className="t-micro">{audition.daysLeft}d</div>
+              </div>
+              <div className="row-between" style={{ gap: 16, alignItems: "flex-start" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 22, fontWeight: 500, letterSpacing: -0.6, lineHeight: 1.1 }}>{audition.name}</div>
+                  <div className="t-meta" style={{ marginTop: 6 }}>{audition.location} · {audition.date}</div>
+                </div>
+                <ReadinessRing value={audition.progress} size={72} stroke={4} sublabel="ready" />
+              </div>
+            </div>
+          ) : (
+            <Link href="/goals" className="card press" style={{ padding: 24, display: "flex", flexDirection: "column", gap: 10, justifyContent: "center", textDecoration: "none", color: "inherit" }}>
+              <div className="t-micro">Next Audition</div>
+              <div style={{ fontSize: 18, fontWeight: 500, letterSpacing: -0.4, lineHeight: 1.2 }}>Add a deadline</div>
+              <div className="t-meta">A real audition date gives the work weight. Set one in Goals →</div>
+            </Link>
+          )}
+        </div>
+      </Reveal>
+
+      {/* Active repertoire — reflects locally-added pieces */}
+      <HomeRepertoire serverPieces={data.activePieces} />
     </div>
   );
 }

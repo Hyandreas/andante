@@ -39,3 +39,19 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# generated graph / analysis artifacts (graphify, etc.)
+/graphify-out/
+
+# local backups (config/env snapshots)
+*.investor-backup
+*.backup
+*.bak
+
+# python (composer-worker)
+__pycache__/
+*.pyc
+
+# OS / editor cruft
+Thumbs.db
+.idea/

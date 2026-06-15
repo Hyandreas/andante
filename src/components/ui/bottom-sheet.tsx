@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 interface BottomSheetProps {
   open: boolean;
@@ -12,6 +12,8 @@ interface BottomSheetProps {
 export function BottomSheet({ open, onClose, title, children }: BottomSheetProps) {
   const [render, setRender] = useState(open);
   const [closing, setClosing] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (open) { setRender(true); setClosing(false); }
@@ -21,6 +23,27 @@ export function BottomSheet({ open, onClose, title, children }: BottomSheetProps
       return () => clearTimeout(t);
     }
   }, [open, render]);
+
+  // Focus the panel on open, restore focus to the trigger on close, and let
+  // Escape request a close (the consumer's onClose owns any mid-save guard).
+  useEffect(() => {
+    if (!open) return;
+    restoreFocusRef.current = (document.activeElement as HTMLElement) ?? null;
+    // Defer until after the panel mounts/paints so focus lands reliably.
+    const focusTimer = window.setTimeout(() => panelRef.current?.focus(), 0);
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.stopPropagation(); onClose(); }
+    };
+    document.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener("keydown", onKeyDown);
+      // Restore focus to whatever was focused before the sheet opened.
+      restoreFocusRef.current?.focus?.();
+    };
+  }, [open, onClose]);
 
   if (!render) return null;
 
@@ -39,6 +62,10 @@ export function BottomSheet({ open, onClose, title, children }: BottomSheetProps
         }}
       />
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        tabIndex={-1}
         style={{
           position: "fixed", left: 0, right: 0, bottom: 0,
           background: "var(--color-bg)",
@@ -49,6 +76,7 @@ export function BottomSheet({ open, onClose, title, children }: BottomSheetProps
           padding: "12px 24px 32px",
           maxHeight: "80vh",
           overflowY: "auto",
+          outline: "none",
         }}
       >
         <div style={{

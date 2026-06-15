@@ -6,24 +6,18 @@ import { usePathname } from "next/navigation";
 import { Icon } from "@/components/ui/icon";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { useTheme } from "@/lib/theme";
+import { SCREENS } from "@/lib/first-run/config";
+import { navItemState } from "@/lib/first-run/entitlement";
+import { useFirstRunStore } from "@/lib/first-run/store";
+import { demoFixturesEnabled } from "@/lib/env";
 
-const ITEMS = [
-  { id: "home",        icon: "home",   label: "Today",          href: "/home" },
-  { id: "pathways",    icon: "target", label: "Pathways",       href: "/pathways" },
-  { id: "rooms",       icon: "users",  label: "Practice Rooms", href: "/rooms" },
-  { id: "leaderboard", icon: "list",   label: "Leaderboard",    href: "/leaderboard" },
-  { id: "pieces",      icon: "music",  label: "Pieces",         href: "/pieces" },
-  { id: "loop",        icon: "timer",  label: "Loop Trainer",   href: "/loop" },
-  { id: "recordings",  icon: "play",   label: "Recordings",     href: "/recordings" },
-  { id: "log",         icon: "list",   label: "Log",            href: "/log" },
-  { id: "goals",       icon: "target", label: "Goals",          href: "/goals" },
-  { id: "pricing",     icon: "target", label: "Pricing",        href: "/pricing" },
-  { id: "settings",    icon: "settings", label: "Settings",     href: "/settings" },
-] as const;
+const PLAN_LABEL: Record<string, string> = { free: "FREE", trial: "TRIAL", pro: "PRO" };
 
 export function DesktopSidebar() {
   const pathname = usePathname();
-  const { theme, toggle } = useTheme();
+  const { resolvedTheme, toggle } = useTheme();
+  const data = useFirstRunStore((s) => s.data);
+
   return (
     <aside
       className="hidden lg:flex"
@@ -44,17 +38,20 @@ export function DesktopSidebar() {
         <Image src="/logo-white.png" alt="Andante" width={22} height={22} style={{ borderRadius: 5 }} className="logo-dark" />
         <span style={{ fontSize: 14, fontWeight: 500, letterSpacing: -0.2 }}>Andante</span>
         <span style={{ marginLeft: "auto", fontSize: 10, letterSpacing: 1, color: "var(--color-text-muted)" }}>
-          PRO
+          {PLAN_LABEL[data.plan] ?? "FREE"}
         </span>
       </div>
 
       <nav style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        {ITEMS.map((it) => {
-          const active = pathname === it.href || pathname.startsWith(it.href + "/");
+        {SCREENS.map((screen) => {
+          const state = navItemState(data, screen);
+          if (state === "hidden") return null;
+          const active = pathname === screen.href || pathname.startsWith(screen.href + "/");
+          const lockedPro = state === "locked-pro";
           return (
             <Link
-              key={it.id}
-              href={it.href}
+              key={screen.id}
+              href={screen.href}
               className="press"
               style={{
                 display: "flex", alignItems: "center", gap: 12,
@@ -62,12 +59,21 @@ export function DesktopSidebar() {
                 fontSize: 13.5, fontWeight: active ? 500 : 400,
                 color: active ? "var(--color-text-primary)" : "var(--color-text-secondary)",
                 background: active ? "var(--color-card-fill)" : "transparent",
+                opacity: lockedPro ? 0.62 : 1,
                 textDecoration: "none",
-                transition: "color 120ms ease, background 120ms ease",
+                transition: "color 120ms ease, background 120ms ease, opacity 120ms ease",
               }}
             >
-              <Icon name={it.icon as never} size={16} stroke={1.5} />
-              <span>{it.label}</span>
+              <Icon name={screen.icon} size={16} stroke={1.5} />
+              <span style={{ flex: 1 }}>{screen.label}</span>
+              {lockedPro && (
+                <span style={{
+                  fontSize: 9, letterSpacing: 0.8, fontWeight: 500,
+                  padding: "2px 6px", borderRadius: 999,
+                  border: "0.5px solid var(--color-border)",
+                  color: "var(--color-text-muted)",
+                }}>PRO</span>
+              )}
             </Link>
           );
         })}
@@ -86,22 +92,24 @@ export function DesktopSidebar() {
             transition: "color 120ms ease",
           }}
         >
-          <Icon name={theme === "dark" ? "sun" : "moon"} size={16} stroke={1.5} />
-          <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span>
+          <Icon name={resolvedTheme === "dark" ? "sun" : "moon"} size={16} stroke={1.5} />
+          <span>{resolvedTheme === "dark" ? "Light mode" : "Dark mode"}</span>
         </button>
-        <div style={{
-          padding: 14,
-          background: "var(--color-card-fill)",
-          borderRadius: 10,
-          display: "flex", flexDirection: "column", gap: 6,
-        }}>
-          <div className="t-micro">This Week</div>
-          <div style={{ fontSize: 22, fontWeight: 500, letterSpacing: -0.6, fontVariantNumeric: "tabular-nums" }}>
-            11h 24m
+        {data.stage === "done" && demoFixturesEnabled() && (
+          <div style={{
+            padding: 14,
+            background: "var(--color-card-fill)",
+            borderRadius: 10,
+            display: "flex", flexDirection: "column", gap: 6,
+          }}>
+            <div className="t-micro">This Week</div>
+            <div style={{ fontSize: 22, fontWeight: 500, letterSpacing: -0.6, fontVariantNumeric: "tabular-nums" }}>
+              11h 24m
+            </div>
+            <ProgressBar value={0.79} animateOnMount={false} />
+            <div className="t-micro" style={{ marginTop: 2 }}>79% of 14h goal</div>
           </div>
-          <ProgressBar value={0.79} animateOnMount={false} />
-          <div className="t-micro" style={{ marginTop: 2 }}>79% of 14h goal</div>
-        </div>
+        )}
       </div>
     </aside>
   );

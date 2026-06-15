@@ -31,6 +31,9 @@ async function flushPendingSessions() {
         ended_at: new Date(s.endedAt).toISOString(),
         duration_sec: s.durationSec,
         focus_type: focus,
+        session_mode: s.sessionMode === "composer" ? "composer" : "practice",
+        entry_pathway_id: s.entryPathwayId ?? null,
+        entry_requirement_id: s.entryRequirementId ?? null,
         notes: s.notes || null,
       })
       .select("id")
@@ -44,6 +47,15 @@ async function flushPendingSessions() {
         piece_id: s.pieceId,
       });
     }
+
+    if (s.sheetMusicIds?.length) {
+      await supabase.from("session_sheet_music").insert(
+        s.sheetMusicIds.map((sheetMusicId) => ({
+          session_id: session.id,
+          sheet_music_id: sheetMusicId,
+        })),
+      );
+    }
   }
 }
 
@@ -52,7 +64,19 @@ export function ServiceWorkerRegister() {
     if (typeof window === "undefined") return;
 
     if ("serviceWorker" in navigator) {
-      void navigator.serviceWorker.register("/sw.js");
+      if (process.env.NODE_ENV === "production") {
+        void navigator.serviceWorker.register("/sw.js");
+      } else {
+        // The SW caches /_next/static chunks + navigations, which collides with
+        // Turbopack HMR in dev ("Router action dispatched before initialization").
+        // Tear down any previously-installed SW and its caches.
+        void navigator.serviceWorker
+          .getRegistrations()
+          .then((regs) => Promise.all(regs.map((r) => r.unregister())));
+        if ("caches" in window) {
+          void caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))));
+        }
+      }
     }
 
     void flushPendingSessions();

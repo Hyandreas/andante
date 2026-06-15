@@ -1,13 +1,16 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { isCronAuthorized } from "@/lib/cron-auth";
 import { renderDigestHtml } from "@/lib/digest-email";
 import { env } from "@/lib/env";
+import { serverEnv } from "@/lib/env-server";
 import type {
   AssignmentRow,
   PieceRow,
   SessionRow,
   TakeRow,
   TeacherStudentRow,
+  UserPreferenceRow,
   UserRow,
 } from "@/lib/supabase/types";
 
@@ -38,11 +41,11 @@ async function sendResendEmail({ to, subject, html }: { to: string; subject: str
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${env.resendApiKey}`,
+      Authorization: `Bearer ${serverEnv.resendApiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: env.digestFromEmail,
+      from: serverEnv.digestFromEmail,
       to: [to],
       subject,
       html,
@@ -54,22 +57,16 @@ async function sendResendEmail({ to, subject, html }: { to: string; subject: str
   }
 }
 
-function isAuthorized(req: Request) {
-  const auth = req.headers.get("authorization");
-  if (env.cronSecret && auth === `Bearer ${env.cronSecret}`) return true;
-  return req.headers.has("x-vercel-cron");
-}
-
 export async function GET(req: Request) {
-  if (!isAuthorized(req)) {
+  if (!isCronAuthorized(req)) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 
-  if (!env.resendApiKey || !env.digestFromEmail || !env.supabaseServiceRoleKey) {
+  if (!serverEnv.resendApiKey || !serverEnv.digestFromEmail || !serverEnv.supabaseServiceRoleKey) {
     return NextResponse.json({ error: "Digest email is not configured." }, { status: 503 });
   }
 
-  const admin = createClient(env.supabaseUrl, env.supabaseServiceRoleKey, {
+  const admin = createClient(env.supabaseUrl, serverEnv.supabaseServiceRoleKey, {
     auth: { persistSession: false },
   });
   const now = new Date();
@@ -82,23 +79,25 @@ export async function GET(req: Request) {
     .not("accepted_at", "is", null);
 
   if (teacherStudentsError) {
-    return NextResponse.json({ error: teacherStudentsError.message }, { status: 500 });
+    console.error("[parent-digest] teacher_students query failed:", teacherStudentsError);
+    return NextResponse.json({ error: "Digest run failed." }, { status: 500 });
   }
 
   const links = (teacherStudents ?? []) as TeacherStudentRow[];
   if (links.length === 0) {
-    return NextResponse.json({ sent: 0, skipped: ["No accepted teacher/student links."] });
+    return NextResponse.json({ sent: 0, skipped: 0, errors: 0 });
   }
 
   const studentIds = Array.from(new Set(links.map((link) => link.student_id)));
   const teacherIds = Array.from(new Set(links.map((link) => link.teacher_id)));
-  const [{ data: studentRows }, { data: teacherRows }, { data: sessionRows }, { data: takeRows }, { data: assignmentRows }, { data: pieceRows }] = await Promise.all([
+  const [{ data: studentRows }, { data: teacherRows }, { data: sessionRows }, { data: takeRows }, { data: assignmentRows }, { data: pieceRows }, { data: preferenceRows }] = await Promise.all([
     admin.from("users").select("*").in("id", studentIds),
     admin.from("users").select("*").in("id", teacherIds),
     admin.from("sessions").select("*").in("user_id", studentIds).gte("started_at", weekStart.toISOString()),
     admin.from("takes").select("*").in("user_id", studentIds).gte("submitted_at", weekStart.toISOString()),
     admin.from("assignments").select("*").in("student_id", studentIds).order("due_date", { ascending: true }),
     admin.from("pieces").select("*").in("user_id", studentIds).eq("is_active", true),
+    admin.from("user_preferences").select("*").in("user_id", studentIds),
   ]);
 
   const students = (studentRows ?? []) as UserRow[];
@@ -107,15 +106,23 @@ export async function GET(req: Request) {
   const takes = (takeRows ?? []) as TakeRow[];
   const assignments = (assignmentRows ?? []) as AssignmentRow[];
   const pieces = (pieceRows ?? []) as PieceRow[];
+  const preferences = (preferenceRows ?? []) as UserPreferenceRow[];
   const teacherById = new Map(teachers.map((teacher) => [teacher.id, teacher]));
-  const sentTo: string[] = [];
+  const preferenceByUserId = new Map(preferences.map((preference) => [preference.user_id, preference]));
+  let sent = 0;
   const skipped: string[] = [];
+  const errors: string[] = [];
 
   for (const student of students) {
+    if (preferenceByUserId.get(student.id)?.parent_digest_emails === false) {
+      skipped.push(`${student.id}: parent digest disabled`);
+      continue;
+    }
+
     const timeZone = student.timezone || "America/New_York";
     const link = links.find((entry) => entry.student_id === student.id);
     if (!link) {
-      skipped.push(`${student.email}: missing teacher link`);
+      skipped.push(`${student.id}: missing teacher link`);
       continue;
     }
 
@@ -167,15 +174,17 @@ export async function GET(req: Request) {
         subject: `Andante weekly digest for ${student.display_name ?? student.email}`,
         html,
       });
-      sentTo.push(student.email);
+      sent += 1;
     } catch (err) {
-      skipped.push(`${student.email}: ${(err as Error).message}`);
+      console.error(`[parent-digest] send failed for ${student.id}:`, err);
+      errors.push(student.id);
     }
   }
 
+  // Counts only — never return user emails or raw upstream error strings.
   return NextResponse.json({
-    sent: sentTo.length,
-    recipients: sentTo,
-    skipped,
+    sent,
+    skipped: skipped.length,
+    errors: errors.length,
   });
 }

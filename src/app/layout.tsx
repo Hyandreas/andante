@@ -90,7 +90,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
             __html:
-              "(function(){try{var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();",
+              "(function(){try{var p=localStorage.getItem('theme')||'system';var d=p==='dark'||(p==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';document.documentElement.setAttribute('data-theme',d);var m=localStorage.getItem('motion');if(m==='off'||(!m&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)){document.documentElement.setAttribute('data-motion','off');}var density=localStorage.getItem('density');if(density){document.documentElement.setAttribute('data-density',density);}}catch(e){document.documentElement.setAttribute('data-theme','light');}})();",
           }}
         />
       </head>

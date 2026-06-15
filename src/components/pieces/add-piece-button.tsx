@@ -6,6 +6,7 @@ import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Icon } from "@/components/ui/icon";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/env";
+import { useLibraryStore } from "@/lib/local-library";
 
 const ROLES = ["Concerto", "Sonata", "Etude", "Solo", "Excerpt"];
 
@@ -24,13 +25,28 @@ export function AddPieceButton() {
   };
 
   const submit = async () => {
-    if (!name.trim()) return;
+    if (!name.trim() || saving) return;
     setSaving(true);
     setErr(null);
     try {
       if (!isSupabaseConfigured()) {
+        // Guard against duplicate pieces with the same name.
+        if (useLibraryStore.getState().hasPieceNamed(name)) {
+          setErr("You already have a piece with that name.");
+          setSaving(false);
+          return;
+        }
+        // Demo mode: persist to the local library (and auto-find sheet music).
+        // Close the sheet first so a second click can't land mid-add.
         setOpen(false);
+        useLibraryStore.getState().addPiece({
+          name: name.trim(),
+          composer: composer.trim(),
+          role,
+          progress: progress / 100,
+        });
         reset();
+        setSaving(false);
         return;
       }
       const supabase = getSupabaseBrowserClient();
@@ -115,7 +131,7 @@ export function AddPieceButton() {
               style={{ width: "100%" }}
             />
           </div>
-          {err && <div className="t-meta" style={{ color: "#9a3f20" }}>{err}</div>}
+          {err && <div className="t-meta" style={{ color: "var(--color-danger)" }}>{err}</div>}
           <button
             className="cta"
             disabled={saving || !name.trim()}

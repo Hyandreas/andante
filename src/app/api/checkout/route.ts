@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { env } from "@/lib/env";
+import { serverEnv } from "@/lib/env-server";
 import { getStripe } from "@/lib/stripe";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+
+const PLAN_IDS = new Set(["pro", "studio"]);
+const CADENCES = new Set(["monthly", "yearly"]);
 
 export async function POST(req: Request) {
   const stripe = getStripe();
@@ -9,19 +13,30 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Payments not configured in this environment." }, { status: 503 });
   }
 
-  const { planId, cadence } = await req.json() as { planId: "pro" | "studio"; cadence: "monthly" | "yearly" };
+  let body: { planId?: unknown; cadence?: unknown };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  }
+
+  const planId = String(body.planId ?? "");
+  const cadence = String(body.cadence ?? "");
+  if (!PLAN_IDS.has(planId) || !CADENCES.has(cadence)) {
+    return NextResponse.json({ error: "Unknown plan." }, { status: 400 });
+  }
 
   const priceKey =
     planId === "pro" && cadence === "yearly" ? "STRIPE_PRICE_PRO_YEARLY" :
     planId === "pro"                          ? "STRIPE_PRICE_PRO_MONTHLY" :
-    planId === "studio"                       ? "STRIPE_PRICE_STUDIO_MONTHLY" : null;
+    "STRIPE_PRICE_STUDIO_MONTHLY";
   const priceId =
-    planId === "pro" && cadence === "yearly" ? env.stripePrices.proYearly :
-    planId === "pro"                          ? env.stripePrices.proMonthly :
-    planId === "studio"                       ? env.stripePrices.studioMonthly : null;
+    planId === "pro" && cadence === "yearly" ? serverEnv.stripePrices.proYearly :
+    planId === "pro"                          ? serverEnv.stripePrices.proMonthly :
+    serverEnv.stripePrices.studioMonthly;
   if (!priceId) {
     return NextResponse.json(
-      { error: priceKey ? `Missing ${priceKey} in your environment.` : "Unknown plan." },
+      { error: `Missing ${priceKey} in your environment.` },
       { status: 400 },
     );
   }
@@ -41,5 +56,5 @@ export async function POST(req: Request) {
     allow_promotion_codes: true,
   });
 
-  return NextResponse.json({ url: session.url });
+  return NextResponse.json({ url: session.url }, { headers: { "Cache-Control": "no-store" } });
 }

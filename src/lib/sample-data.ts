@@ -1,3 +1,12 @@
+// ARCHIVE — preserved placeholder/demo data.
+//
+// This data is no longer shown by default: the first-run tutorial starts the
+// app empty so a new user builds it up from nothing. It is kept intact here so
+// it can be restored at any time for development reference by setting
+// NEXT_PUBLIC_DEMO_FIXTURES=1 (see `demoFixturesEnabled()` in src/lib/env.ts).
+// The data layer (src/lib/app-data.ts) chooses between these fixtures and empty
+// states based on that flag. Do not delete — this is the saved snapshot.
+//
 // Static demo data so the app renders meaningfully before Supabase is wired
 // up. Each screen reads from this until the data layer hooks ship.
 
@@ -71,6 +80,9 @@ export const AUDITIONS: Audition[] = [
 ];
 
 export const HOME_DATA = {
+  // Fixed "demo today" so the dashboard hero matches the rest of the seed
+  // timeline (log shows TUE NOV 11, Curtis audition is 23 days out → Dec 4).
+  dateLabel: "Tuesday · Nov 11",
   streak: 23,
   weekDaysPracticed: 6,
   todayMinutes: 78,

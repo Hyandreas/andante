@@ -92,6 +92,10 @@ export function SubmitTakePanel({ requirements }: SubmitTakePanelProps) {
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const startedAtRef = useRef<number | null>(null);
+  const capTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Cap takes at 5 minutes so a forgotten recorder doesn't balloon the upload.
+  const MAX_RECORDING_SEC = 5 * 60;
+  const MAX_RECORDING_BYTES = 50 * 1024 * 1024;
 
   useEffect(() => {
     if (!selectedRequirementId && requirements[0]?.id) {
@@ -111,6 +115,7 @@ export function SubmitTakePanel({ requirements }: SubmitTakePanelProps) {
   useEffect(() => {
     return () => {
       streamRef.current?.getTracks().forEach((track) => track.stop());
+      if (capTimerRef.current) clearTimeout(capTimerRef.current);
     };
   }, []);
 
@@ -175,8 +180,10 @@ export function SubmitTakePanel({ requirements }: SubmitTakePanelProps) {
             status: take.status,
             score: take.score,
             feedback: feedback.map((entry) => ({
-              who: entry.reviewer_role ?? "Reviewer",
-              role: entry.reviewer_note ?? "Andante judge queue",
+              // who = the reviewer's identity, role = their reviewer_role, and
+              // note = the feedback body. (Previously these were transposed.)
+              who: entry.reviewer_id ?? "Andante reviewer",
+              role: entry.reviewer_role ?? "Andante judge queue",
               note: entry.body,
             })),
           };
@@ -228,18 +235,34 @@ export function SubmitTakePanel({ requirements }: SubmitTakePanelProps) {
       setRecordedBlob(null);
       setRecordedDurationSec(0);
       setIsRecording(true);
+
+      // Auto-stop at the cap with a friendly note.
+      capTimerRef.current = setTimeout(() => {
+        if (recorderRef.current && recorderRef.current.state !== "inactive") {
+          setError(`Takes are capped at ${MAX_RECORDING_SEC / 60} minutes — we stopped the recording for you.`);
+          stopRecording();
+        }
+      }, MAX_RECORDING_SEC * 1000);
     } catch (err) {
       setError((err as Error).message);
     }
   }
 
   function stopRecording() {
+    if (capTimerRef.current) {
+      clearTimeout(capTimerRef.current);
+      capTimerRef.current = null;
+    }
     recorderRef.current?.stop();
     setIsRecording(false);
   }
 
   async function uploadTake() {
     if (!recordedBlob || !selectedRequirementId) return;
+    if (recordedBlob.size > MAX_RECORDING_BYTES) {
+      setError("Takes are capped at 50 MB.");
+      return;
+    }
     if (!isSupabaseConfigured()) {
       setError("Supabase is not configured in this environment.");
       return;
@@ -393,10 +416,10 @@ export function SubmitTakePanel({ requirements }: SubmitTakePanelProps) {
         <div style={{
           padding: 12,
           borderRadius: 10,
-          border: "0.5px solid #d7b0b0",
-          background: "#fff3f3",
+          border: "0.5px solid var(--color-danger-border)",
+          background: "var(--color-danger-bg)",
           fontSize: 12,
-          color: "#8a3131",
+          color: "var(--color-danger)",
         }}>
           {error}
         </div>
